@@ -9,11 +9,17 @@ function ShowTableView() {
         [searchInput, setSearchInput] = useState(""),
         [startDate, setStartDate] = useState(""),
         [endDate, setEndDate] = useState(""),
+
+        [filterStartDate, setFilterStartDate] = useState(""),
+        [filterEndDate, setFilterEndDate] = useState(""),
+
         [data, setData] = useState([]),
         [isLoading, setIsLoading] = useState(true),
+
         [currentPage, setCurrentPage] = useState(1),
-        [itemsPerPage] = useState(10),
-        [activeView, setActiveView] = useState("table"); // Track the active view
+        [itemsPerPage, setItemsPerPage] = useState(10),
+
+        [activeView, setActiveView] = useState("table");
 
     useEffect(() => {
         fetch("https://opendata.ecdc.europa.eu/covid19/casedistribution/json/")
@@ -25,22 +31,20 @@ function ShowTableView() {
                     const date = new Date(JsonFile["dateRep"]);
                     return date < earliest ? date : earliest;
                 }, new Date());
+                const latestDate = json["records"].reduce((latest, JsonFile) => {
+                    const date = new Date(JsonFile["dateRep"]);
+                    return date > latest ? date : latest;
+                }, new Date(0));
                 setStartDate(earliestDate.toISOString().split("T")[0]);
+                setEndDate(latestDate.toISOString().split("T")[0]);
+                setFilterStartDate(earliestDate.toISOString().split("T")[0]);
+                setFilterEndDate(latestDate.toISOString().split("T")[0]);
             })
             .catch((error) => {
                 console.error("Error fetching data:", error);
                 setIsLoading(false);
             });
     }, []);
-
-    useEffect(() => {
-        const earliestDate = data.reduce((earliest, JsonFile) => {
-            const date = new Date(JsonFile["dateRep"]);
-            return date < earliest ? date : earliest;
-        }, new Date());
-        setStartDate(earliestDate.toISOString().split("T")[0]);
-        setEndDate(new Date().toISOString().split("T")[0]);
-    }, [data]);
     const handleFilter = () => {
             const filteredData = data.filter((JsonFile) => {
                     const date = new Date(JsonFile["dateRep"]);
@@ -94,8 +98,12 @@ function ShowTableView() {
         paginate = (pageNumber) => setCurrentPage(pageNumber),
         handleViewChange = (view) => {
             setActiveView(view);
+        },
+        handleFilterReset = () => {
+            setStartDate(filterStartDate);
+            setEndDate(filterEndDate);
+            setSearchInput("");
         };
-
     return (
         <div>
             <div className="button-container-views container">
@@ -128,6 +136,8 @@ function ShowTableView() {
                             type="date"
                             id="StartDate"
                             value={startDate}
+                            min={filterStartDate}
+                            max={filterEndDate}
                             onChange={(startDateInput) =>
                                 setStartDate(startDateInput.target.value)
                             }
@@ -136,8 +146,27 @@ function ShowTableView() {
                             type="date"
                             id="EndDate"
                             value={endDate}
-                            onChange={(endDateInput) => setEndDate(endDateInput.target.value)}
+                            min={filterStartDate}
+                            max={filterEndDate}
+                            onChange={(endDateInput) =>
+                                setEndDate(endDateInput.target.value)}
                         />
+                        <button
+                            onClick={() => handleFilterReset()}
+                        >
+                            Show all cases
+                        </button>
+                        <select
+                            value={itemsPerPage}
+                            onChange={(event) =>
+                                setItemsPerPage(Number(event.target.value))}
+                        >
+                            {[5,10,15,20].map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     {isLoading ? (
                         <h1 aria-busy="true">
@@ -187,13 +216,16 @@ function ShowTableView() {
                         >
                             Previous
                         </button>
-                        {Array.from({ length: totalPages }, (_, index) => (
+                        {Array.from(
+                            { length: totalPages },
+                            (_, index) => index + 1
+                        ).map((pageNumber) => (
                             <button
-                                key={index + 1}
-                                onClick={() => paginate(index + 1)}
-                                disabled={index + 1 === currentPage}
+                                key={pageNumber}
+                                onClick={() => paginate(pageNumber)}
+                                disabled={pageNumber === currentPage}
                             >
-                                {index + 1}
+                                {pageNumber}
                             </button>
                         ))}
                         <button
